@@ -1,6 +1,9 @@
 var mysql = require("mysql");
 var inquirer = require("inquirer");
 
+const allEmployees = [];
+const allRoles = [];
+
 var connection = mysql.createConnection({
   host: "localhost",
   port: 3306,
@@ -11,25 +14,35 @@ var connection = mysql.createConnection({
 
 connection.connect(function(err) {
   if (err) throw err;
-  runSearch();
+  init();
 });
 
-var allEmployees = [];
-var allRoles = [];
-
-async function runSearch() {
-    var employeesData = await connection.query("SELECT * FROM employees", function(err, res) {
+async function init() {
+    const employeesData = await connection.query("SELECT * FROM employees", function(err, res) {
         if (err) throw err;
         res.forEach (function(employees) {
             allEmployees.push(employees.first_name + " " + employees.last_name);
         });
     });
-    var rolesData = await connection.query("SELECT * FROM roles LEFT JOIN departments ON roles.department_id = departments.id", function (err, res) {
+    const rolesData = await connection.query("SELECT * FROM roles LEFT JOIN departments ON roles.department_id = departments.id", function (err, res) {
         if (err) throw err;
         res.forEach(function(roles) {
             allRoles.push(roles.departments + " " + roles.title)
         });
     });
+    runSearch();
+}
+
+async function emptyarrays() {
+    function empty() {
+        allEmployees.length = 0;
+        allRoles.length = 0;
+    }
+    empty();
+    init();
+}
+
+async function runSearch() {
     inquirer.prompt({
       name: "action",
       type: "rawlist",
@@ -94,14 +107,15 @@ async function addDepartment() {
         [response.departments],
         function(err) {
             if (err) throw (err);
+            console.log("Added department!")
             viewDepartments();
         });
     });
 }
 
 async function addRole() {
-    var deptsArray = [];
-    var dataRoles = await connection.query("SELECT * FROM departments", function (err, res) {
+    const deptsArray = [];
+    const dataRoles = await connection.query("SELECT * FROM departments", function (err, res) {
         if (err) throw err;
         res.forEach(function(departments) {
             deptsArray.push(departments.departments);
@@ -125,20 +139,20 @@ async function addRole() {
             choices: deptsArray
         }
     ]).then(function(response) {
-        var dept_id = deptsArray.indexOf(response.departments) + 1;
+        const dept_id = deptsArray.indexOf(response.departments) + 1;
         connection.query("INSERT INTO roles (title, salary, department_id) VALUES (?, ?, ?)",
         [response.roles, response.salary, dept_id],
         function(err) {
             if (err) throw err;
-            // console.log("Added role!")
+            console.log("Added role!")
             viewRoles();
         })
     });
 }
 
 async function addEmployee() {
-    var employeesArray = ["null"];
-    var dataEmployees = await connection.query("SELECT * FROM employees", function (err, res) {
+    const employeesArray = ["null"];
+    const dataEmployees = await connection.query("SELECT * FROM employees", function (err, res) {
         if (err) throw err;
         res.forEach(function(employees) {
             employeesArray.push(employees.first_name + " " + employees.last_name);
@@ -168,38 +182,39 @@ async function addEmployee() {
             choices: employeesArray
         }
     ]).then(function(response) {
-        var role_id = allRoles.indexOf(response.roles) +1;
-        var manager_id = employeesArray.indexOf(response.manager);
+        const role_id = allRoles.indexOf(response.roles) +1;
+        const manager_id = employeesArray.indexOf(response.manager);
         connection.query("INSERT INTO employees (first_name, last_name, role_id, manager_id) VALUES (?, ?, ?, ?)",
         [response.first_name, response.last_name, role_id, manager_id],
         function(err) {
             if (err) throw err;
+            console.log("Added employee!")
             viewEmployees();
         });
     });
 }
 
 async function viewDepartments() {
-    var data = await connection.query("SELECT * FROM departments", function (err, res) {
+    const data = await connection.query("SELECT * FROM departments", function (err, res) {
         if (err) throw err;
         console.table(res);
-        runSearch();
+        emptyarrays();
     });
 }
 
 async function viewRoles() {
-    var data = await connection.query("SELECT roles.title, departments.departments FROM departments RIGHT JOIN roles ON roles.department_id = departments.id", function (err, res) {
+    const data = await connection.query("SELECT roles.title, departments.departments FROM departments RIGHT JOIN roles ON roles.department_id = departments.id", function (err, res) {
         if (err) throw err;
         console.table(res);
-        runSearch();
+        emptyarrays();
     });
 }
 
 async function viewEmployees() {
-    var data = await connection.query("SELECT employees.id, employees.first_name, employees.last_name, departments.departments, roles.title, employees.manager_id FROM employees INNER JOIN roles ON employees.role_id = roles.id INNER JOIN departments ON roles.department_id = departments.id", function (err, res) {
+    const data = await connection.query("SELECT employees.id, employees.first_name, employees.last_name, departments.departments, roles.title, employees.manager_id FROM employees INNER JOIN roles ON employees.role_id = roles.id INNER JOIN departments ON roles.department_id = departments.id", function (err, res) {
         if (err) throw err;
         console.table(res);
-        runSearch();
+        emptyarrays();
     });
 }
 
@@ -220,31 +235,12 @@ async function updateEmployeeRole() {
         }
       ])
       .then(function(response) {
-        var role_id = allRoles.indexOf(response.roles) + 1;
-        var employee_id = allEmployees.indexOf(response.employees) + 1;
-        var query = "UPDATE employees SET role_id = ? WHERE id = ?";
+        const role_id = allRoles.indexOf(response.roles) + 1;
+        const employee_id = allEmployees.indexOf(response.employees) + 1;
+        const query = "UPDATE employees SET role_id = ? WHERE id = ?";
         connection.query(query, [role_id, employee_id], function(err) {
           if (err) throw err;
-          viewEmployees();
+          emptyarrays();
         });
       });
 }
-
-// async function removeEmployee() {
-//     const employees = await db.findAllEmployees();
-//     const employeeChoices = employees.map(({ id, first_name, last_name }) => ({
-//       name: `${first_name} ${last_name}`,
-//       value: id
-//     }));
-//     const { employeeId } = await prompt([
-//       {
-//         type: "list",
-//         name: "employeeId",
-//         message: "Which employee do you want to remove?",
-//         choices: employeeChoices
-//       }
-//     ]);
-//     await db.removeEmployee(employeeId);
-//     console.log("Removed employee from the database");
-//     loadMainPrompts();
-//   }
